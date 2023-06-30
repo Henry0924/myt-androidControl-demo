@@ -4,7 +4,7 @@
 # Binaries for programs and plugins
 *.exe
 *.exe~
-*.dll
+#*.dll
 *.so
 *.dylib
 
@@ -16,6 +16,11 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+.idea/
+.settings/
+.vscode/
+vender/
+log/
 
 # Go workspace file
 go.work
