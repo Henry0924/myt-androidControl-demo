@@ -1,6 +1,6 @@
 # myt-androidControl-demo
 
-1.默认使用windows x64系统，libmytrpc.h文件中是调用方法
+1.默认使用windows x64系统，libmytrpc.h文件中是调用方法，exe文件须和libmytrpc.dll在同一个目录下
 
 2.参数说明
 
