@@ -2,8 +2,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"math"
+	"os"
+	"reflect"
 	"syscall"
 	"time"
 	"unicode/utf8"
@@ -11,7 +14,7 @@ import (
 )
 
 var (
-	command = flag.String("command", "move", "操作指令, click--点击, move--滑动")
+	command = flag.String("command", "move", "操作指令, click--点击, move--滑动, screenshot--截图")
 	host    = flag.String("host", "", "安卓host，例192.168.100.10")
 	x1      = flag.Int("x1", 200, "x轴坐标x1")
 	y1      = flag.Int("y1", 200, "y轴坐标y1")
@@ -34,6 +37,14 @@ func IntPtr(i int) uintptr {
 
 func PtrInt(u uintptr) int {
 	return int(u)
+}
+
+func readMemory(addr uintptr, size int) []byte {
+	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Data: addr,
+		Len:  size,
+		Cap:  size,
+	}))
 }
 
 var (
@@ -96,6 +107,30 @@ func Move(x1, y1, x2, y2 int) {
 	touchUp.Call(Handle, 0, IntPtr(x2), IntPtr(y2))
 }
 
+func TakeCaptrueCompress() string {
+	takeCaptrueCompress := Lib.MustFindProc("takeCaptrueCompress")
+	var dataLen int
+	ret, _, _ := takeCaptrueCompress.Call(Handle, 0, 0, uintptr(unsafe.Pointer(&dataLen)))
+
+	b := readMemory(ret, dataLen)
+	fileName := fmt.Sprintf("%d.png", time.Now().Unix())
+	file, err := os.OpenFile(fileName, os.O_CREATE, 0)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	_, err = file.Write(b)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	freeRpcPtr := Lib.MustFindProc("freeRpcPtr")
+	freeRpcPtr.Call(ret)
+
+	return fileName
+}
+
 func Keypress() {
 	keyPress := Lib.MustFindProc("keyPress")
 	ret, _, _ := keyPress.Call(Handle, IntPtr(24))
@@ -150,6 +185,9 @@ func main() {
 	case "move":
 		Move(*x1, *y1, *x2, *y2)
 		log.Printf("move: x1-%d, y1-%d; x2-%d, y2-%d", *x1, *y1, *x2, *y2)
+	case "screenshot":
+		fileName := TakeCaptrueCompress()
+		log.Printf("screenshot: %s", fileName)
 	default:
 		log.Fatal("command错误")
 	}

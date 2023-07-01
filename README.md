@@ -24,3 +24,7 @@
 4.模拟滑动
 
     .\demo.exe -host=192.168.100.10 -command=move -x1=269 -y1=690 -x2=300 -y2=300
+
+5.屏幕截图
+
+    .\demo.exe -host=192.168.100.10 -command=screenshot
