@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -14,10 +15,11 @@ import (
 )
 
 var (
-	command = flag.String("command", "move", "操作指令, click--点击, move--滑动, screenshot--截图")
-	host    = flag.String("host", "", "安卓host，例192.168.100.10")
-	x1      = flag.Int("x1", 200, "x轴坐标x1")
-	y1      = flag.Int("y1", 200, "y轴坐标y1")
+	command = flag.String("command", "click", "操作指令, click--点击, move--滑动, screenshot--截图")
+	host    = flag.String("host", "", "安卓host，例192.168.100.10，batch为true时可不传")
+	batch   = flag.Bool("batch", false, "批量发送命令，为true时会读取config.json文件")
+	x1      = flag.Int("x1", 269, "x轴坐标x1")
+	y1      = flag.Int("y1", 462, "y轴坐标y1")
 	x2      = flag.Int("x2", 600, "滑动终点x轴坐标x2")
 	y2      = flag.Int("y2", 200, "滑动终点y轴坐标y2")
 )
@@ -113,7 +115,8 @@ func TakeCaptrueCompress() string {
 	ret, _, _ := takeCaptrueCompress.Call(Handle, 0, 0, uintptr(unsafe.Pointer(&dataLen)))
 
 	b := readMemory(ret, dataLen)
-	fileName := fmt.Sprintf("%d.png", time.Now().Unix())
+
+	fileName := fmt.Sprintf("%d.png", time.Now().UnixNano())
 	file, err := os.OpenFile(fileName, os.O_CREATE, 0)
 	if err != nil {
 		log.Fatal(err)
@@ -133,45 +136,33 @@ func TakeCaptrueCompress() string {
 
 func Keypress() {
 	keyPress := Lib.MustFindProc("keyPress")
-	ret, _, _ := keyPress.Call(Handle, IntPtr(24))
-	log.Println("ret: ", ret)
+	keyPress.Call(Handle, IntPtr(24))
 }
 
 func Click(x int, y int) {
 	touchClick := Lib.MustFindProc("touchClick")
-	ret, _, _ := touchClick.Call(Handle, 0, IntPtr(x), IntPtr(y))
-	log.Println("ret: ", ret)
+	touchClick.Call(Handle, 0, IntPtr(x), IntPtr(y))
 }
 
 func SendText() {
 	log.Println("utf8: ", utf8.ValidString("你好"))
 	sendText := Lib.MustFindProc("sendText")
-	ret, _, _ := sendText.Call(Handle, StrPtr("你好"))
-	log.Println("ret: ", ret)
+	sendText.Call(Handle, StrPtr("你好"))
 }
 
 func OpenApp() {
 	openApp := Lib.MustFindProc("openApp")
-	ret, _, _ := openApp.Call(Handle, StrPtr("tv.danmaku.bili"))
-	log.Println("ret: ", ret)
+	openApp.Call(Handle, StrPtr("tv.danmaku.bili"))
 }
 
 func StopApp() {
 	stopApp := Lib.MustFindProc("stopApp")
-	ret, _, _ := stopApp.Call(Handle, StrPtr("tv.danmaku.bili"))
-	log.Println("ret: ", ret)
+	stopApp.Call(Handle, StrPtr("tv.danmaku.bili"))
 }
 
-func main() {
-	flag.Parse()
-
-	if *host == "" {
-		log.Fatal("host不能为空")
-	}
-
-	Lib = syscall.MustLoadDLL("libmytrpc.dll")
+func run(host string) {
 	proc := Lib.MustFindProc("openDevice")
-	Handle, _, _ = proc.Call(StrPtr(*host), 9083, 10)
+	Handle, _, _ = proc.Call(StrPtr(host), 9083, 10)
 
 	defer func() {
 		closeDevice := Lib.MustFindProc("closeDevice")
@@ -181,15 +172,49 @@ func main() {
 	switch *command {
 	case "click":
 		Click(*x1, *y1)
-		log.Printf("click: x1-%d, y1-%d", *x1, *y1)
+		log.Printf("host: %s, click: x1-%d, y1-%d", host, *x1, *y1)
 	case "move":
 		Move(*x1, *y1, *x2, *y2)
-		log.Printf("move: x1-%d, y1-%d; x2-%d, y2-%d", *x1, *y1, *x2, *y2)
+		log.Printf("host: %s, move: x1-%d, y1-%d; x2-%d, y2-%d", host, *x1, *y1, *x2, *y2)
 	case "screenshot":
 		fileName := TakeCaptrueCompress()
-		log.Printf("screenshot: %s", fileName)
+		log.Printf("host: %s, screenshot: %s", host, fileName)
 	default:
 		log.Fatal("command错误")
 	}
+}
 
+func main() {
+	flag.Parse()
+
+	Lib = syscall.MustLoadDLL("libmytrpc.dll")
+
+	if *batch {
+		var config map[string]interface{}
+		content, err := os.ReadFile("config.json")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		err = json.Unmarshal(content, &config)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		hosts, ok := config["hosts"].([]interface{})
+		if !ok {
+			log.Fatal("获取hosts失败")
+		}
+
+		for _, h := range hosts {
+			run(h.(string))
+		}
+
+	} else {
+		if *host == "" {
+			log.Fatal("host不能为空")
+		}
+
+		run(*host)
+	}
 }
